@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import filedialog
+from tkinter.filedialog import askdirectory
 import pandas as pd
 from tkinter import messagebox
 from pandas.errors import EmptyDataError
@@ -8,36 +9,40 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 class Client(object):
-    """A class that creates a client. A tkinter box that allows users to make actions."""
+    """
+    A class that creates a client.
+    A tkinter box that allows users to convert a csv file to a local database
+    using sql alchemy and sqlite3 libraries.
+    """
 
     def __init__(self, tk_window):
         self.window = tk_window
-        tk_window.geometry("900x600")
+        tk_window.geometry("495x255")
         self.window.wm_title("CSV-to-Database converter")
         self.df_data = None
         self.Base = declarative_base()
 
-        # Adding a horizontal scrollbar to a frame where csv file content is being read.
-        frame = Frame(tk_window, bd=2, relief=GROOVE)
-        x_scrollbar = Scrollbar(frame, orient=HORIZONTAL)
-        x_scrollbar.grid(row=1, column=0, sticky=E + W)
-        self.display_file_content = Text(frame, wrap=NONE, bd=0, xscrollcommand=x_scrollbar.set, height=12, width=40)
-        self.display_file_content.grid(row=0, column=0, sticky=N + S + E + W)
-        x_scrollbar.config(command=self.display_file_content.xview)
-        frame.grid(column=40, row=0)
+        import_file_button = Button(tk_window, text="Import File", command=self.import_csv_file)
+        import_file_button.grid(column=0, row=0, sticky=W, pady=(0, 10), padx=(5, 0))
 
-        import_file_button = Button(tk_window, text="Import CSV File", command=self.import_csv_file)
-        import_file_button.grid(column=0, row=0)
-
-        db_name_label = Label(tk_window, text="Enter Database Name:")
-        db_name_label.grid(column=0, row=15)
+        db_name_label = Label(tk_window, text="Database Name:")
+        db_name_label.grid(column=6, row=0, pady=(0, 10))
         self.db_name = StringVar()
         db_name_field = Entry(tk_window, textvariable=self.db_name)
-        db_name_field.grid(column=0, row=16)
+        db_name_field.grid(column=7, row=0, pady=(0, 10))
 
-        self.confirm_db_button = Button(tk_window, text="Confirm Database", command=self.confirm_database)
-        self.confirm_db_button.grid(column=0, row=17)
+        self.confirm_db_button = Button(tk_window, text="Confirm Database", command=self.create_database)
+        self.confirm_db_button.grid(column=14, row=0, columnspan=2, pady=(0, 10))
         self.confirm_db_button["state"] = DISABLED
+
+        # Adding a horizontal scrollbar to a frame where csv file content is written.
+        content_frame = Frame(tk_window, bd=2, relief=GROOVE)
+        content_frame.grid(column=0, row=2, columnspan=15, rowspan=15, padx=(5, 0))
+        x_scrollbar = Scrollbar(content_frame, orient=HORIZONTAL)
+        x_scrollbar.grid(row=1, column=0, sticky=E + W)
+        self.csv_preview = Text(content_frame, wrap=NONE, bd=0, xscrollcommand=x_scrollbar.set, height=12, width=60)
+        self.csv_preview.grid(row=0, column=0)
+        x_scrollbar.config(command=self.csv_preview.xview)
 
     def import_csv_file(self):
         # Imports a .csv file and reads it as pandas dataframe
@@ -55,22 +60,32 @@ class Client(object):
             messagebox.showerror("Empty File", "No columns to parse from file")
 
     def display_dataframe(self, df_data):
-        # A method that displays a preview of imported .csv file. (Output in a text widget)
-        self.display_file_content.delete(1.0, END)
+        # A method that displays a preview of imported .csv file content and
+        #  calculates all rows and columns in file.
+        self.csv_preview.delete(1.0, END)
         content_to_display = "Preview: \n \n {} \n \n Total Columns:{} \n Total Rows: {}".format(
             df_data.head().to_string(),
             len(df_data.columns),
             len(df_data)
         )
-        self.display_file_content.insert(INSERT, content_to_display)
-        self.display_file_content.config(state=DISABLED)
+        self.csv_preview.insert(INSERT, content_to_display)
+        self.csv_preview.config(state=DISABLED)
 
-    def confirm_database(self):
+    def create_database(self):
         # Creates a database from imported csv file with given name.
-        print(self.db_name.get())
-        engine = create_engine("sqlite:///" + self.db_name.get() + ".db")
-        self.Base.metadata.create_all(engine)
-        self.df_data.to_sql(self.db_name.get(), con=engine, index=True, if_exists='replace')
+        if self.db_name.get() == '':
+            messagebox.showerror("Empty name field", "Enter a valid database name.")
+        else:
+            # Creating a custom save directory
+            chosen_directory = askdirectory(title='Choose Where To Export Database')
+            file_path = "sqlite:///" + chosen_directory + "/" + self.db_name.get() + ".db"
+            # Establishing connection with save directory and converting csv to db
+            engine = create_engine(file_path)
+            self.Base.metadata.create_all(engine)
+            self.df_data.to_sql(self.db_name.get(), con=engine, index=True, if_exists='replace')
+            info = "Database was converted and exported successfully! To review database use an appropriate" \
+                   " database tool, such as SQLite Studio, HeidiSQL or MySQL Workbench."
+            messagebox.showinfo(title='Converted Successfully!', message=info)
 
 
 window = Tk()
