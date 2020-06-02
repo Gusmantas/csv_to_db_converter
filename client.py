@@ -28,26 +28,28 @@ class Client(object):
         db_name_label = Label(tk_window, text="Database Name:")
         db_name_label.grid(column=6, row=0, pady=(0, 10))
         self.db_name = StringVar()
-        db_name_field = Entry(tk_window, textvariable=self.db_name)
-        db_name_field.grid(column=7, row=0, pady=(0, 10))
+        self.db_name_field = Entry(tk_window, textvariable=self.db_name)
+        self.db_name_field.grid(column=7, row=0, pady=(0, 10))
 
-        self.confirm_db_button = Button(tk_window, text="Confirm Database", command=self.create_database)
+        self.confirm_db_button = Button(tk_window, text="Convert File", command=self.create_database)
         self.confirm_db_button.grid(column=14, row=0, columnspan=2, pady=(0, 10))
         self.confirm_db_button["state"] = DISABLED
 
         # Adding a horizontal scrollbar to a frame where csv file content is written.
-        content_frame = Frame(tk_window, bd=2, relief=GROOVE)
+        content_frame = Frame(tk_window, bd=2, relief=SOLID)
         content_frame.grid(column=0, row=2, columnspan=15, rowspan=15, padx=(5, 0))
         x_scrollbar = Scrollbar(content_frame, orient=HORIZONTAL)
         x_scrollbar.grid(row=1, column=0, sticky=E + W)
         self.csv_preview = Text(content_frame, wrap=NONE, bd=0, xscrollcommand=x_scrollbar.set, height=12, width=60)
         self.csv_preview.grid(row=0, column=0)
+        self.csv_preview.insert(INSERT, "\n------Choose a .csv file to preview it's content here------")
+        self.csv_preview.config(state=DISABLED)
         x_scrollbar.config(command=self.csv_preview.xview)
 
     def import_csv_file(self):
         # Imports a .csv file and reads it as pandas dataframe
-        csv_file_path = filedialog.askopenfilename(title="Select a .csv file", filetypes=(("CSV Files", "*.csv"),))
         try:
+            csv_file_path = filedialog.askopenfilename(title="Select a .csv file", filetypes=(("CSV Files", "*.csv"),))
             self.df_data = pd.read_csv(csv_file_path)
             self.display_dataframe(self.df_data)
             self.confirm_db_button["state"] = NORMAL
@@ -62,12 +64,13 @@ class Client(object):
     def display_dataframe(self, df_data):
         # A method that displays a preview of imported .csv file content and
         #  calculates all rows and columns in file.
+        self.csv_preview.config(state=NORMAL)
         self.csv_preview.delete(1.0, END)
         content_to_display = "Preview: \n \n {} \n \n Total Columns:{} \n Total Rows: {}".format(
             df_data.head().to_string(),
             len(df_data.columns),
             len(df_data)
-        )
+            )
         self.csv_preview.insert(INSERT, content_to_display)
         self.csv_preview.config(state=DISABLED)
 
@@ -83,6 +86,7 @@ class Client(object):
             engine = create_engine(file_path)
             self.Base.metadata.create_all(engine)
             self.df_data.to_sql(self.db_name.get(), con=engine, index=True, if_exists='replace')
+            self.db_name_field.delete(0, END)
             info = "Database was converted and exported successfully! To review database use an appropriate" \
                    " database tool, such as SQLite Studio, HeidiSQL or MySQL Workbench."
             messagebox.showinfo(title='Converted Successfully!', message=info)
