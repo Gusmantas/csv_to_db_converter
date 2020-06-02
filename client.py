@@ -20,6 +20,8 @@ class Client(object):
         tk_window.geometry("495x255")
         self.window.wm_title("CSV-to-Database converter")
         self.df_data = None
+        # returns a metaclass, so that entities can inherit from it. After definition
+        # database table and mapper will generate automatically
         self.Base = declarative_base()
 
         import_file_button = Button(tk_window, text="Import File", command=self.import_csv_file)
@@ -31,28 +33,38 @@ class Client(object):
         self.db_name_field = Entry(tk_window, textvariable=self.db_name)
         self.db_name_field.grid(column=7, row=0, pady=(0, 10))
 
-        self.confirm_db_button = Button(tk_window, text="Convert File", command=self.create_database)
-        self.confirm_db_button.grid(column=14, row=0, columnspan=2, pady=(0, 10))
-        self.confirm_db_button["state"] = DISABLED
+        self.convert_button = Button(tk_window, text="Convert File", command=self.create_database)
+        self.convert_button.grid(column=14, row=0, columnspan=2, pady=(0, 10))
+        # Button state set to normal after csv file is chosen and can be converted to db
+        self.convert_button["state"] = DISABLED
 
-        # Adding a horizontal scrollbar to a frame where csv file content is written.
+        # Adding a horizontal scrollbar to Text widget, where csv file content is displayed.
+        # Wrapping it all in a frame for better looks.
         content_frame = Frame(tk_window, bd=2, relief=SOLID)
         content_frame.grid(column=0, row=2, columnspan=15, rowspan=15, padx=(5, 0))
         x_scrollbar = Scrollbar(content_frame, orient=HORIZONTAL)
         x_scrollbar.grid(row=1, column=0, sticky=E + W)
         self.csv_preview = Text(content_frame, wrap=NONE, bd=0, xscrollcommand=x_scrollbar.set, height=12, width=60)
         self.csv_preview.grid(row=0, column=0)
-        self.csv_preview.insert(INSERT, "\n------Choose a .csv file to preview it's content here------")
-        self.csv_preview.config(state=DISABLED)
+        self.important_information = " " * 25 + "NOTE! \n" + \
+                                     "- .csv file must be clean, without additional content.  \n" \
+                                     "- make sure .csv file only includes columns and rows. \n" \
+                                     "- specify a name for database before converting. \n" \
+                                     "- to open .db file use software as HeidiSQL, SQLite etc.\n" \
+                                     "- choose a .csv file to see its preview in this field.\n" \
+                                     "- empty .csv files won't be converted"
+
+        self.set_preview_field(self.important_information)
         x_scrollbar.config(command=self.csv_preview.xview)
 
     def import_csv_file(self):
-        # Imports a .csv file and reads it as pandas dataframe
+        # Method for importing .csv file, assigning it to pandas DataFrame. And displaying it to
+        # Text widget using display_dataframe method.
         try:
             csv_file_path = filedialog.askopenfilename(title="Select a .csv file", filetypes=(("CSV Files", "*.csv"),))
             self.df_data = pd.read_csv(csv_file_path)
             self.display_dataframe(self.df_data)
-            self.confirm_db_button["state"] = NORMAL
+            self.convert_button["state"] = NORMAL
             return self.df_data
         except FileExistsError:
             messagebox.showerror("File Do Not Exit", "Unable to find requested file. Please check if file exists.")
@@ -64,15 +76,12 @@ class Client(object):
     def display_dataframe(self, df_data):
         # A method that displays a preview of imported .csv file content and
         #  calculates all rows and columns in file.
-        self.csv_preview.config(state=NORMAL)
-        self.csv_preview.delete(1.0, END)
         content_to_display = "Preview: \n \n {} \n \n Total Columns:{} \n Total Rows: {}".format(
             df_data.head().to_string(),
             len(df_data.columns),
             len(df_data)
-            )
-        self.csv_preview.insert(INSERT, content_to_display)
-        self.csv_preview.config(state=DISABLED)
+        )
+        self.set_preview_field(content_to_display)
 
     def create_database(self):
         # Creates a database from imported csv file with given name.
@@ -87,9 +96,17 @@ class Client(object):
             self.Base.metadata.create_all(engine)
             self.df_data.to_sql(self.db_name.get(), con=engine, index=True, if_exists='replace')
             self.db_name_field.delete(0, END)
-            info = "Database was converted and exported successfully! To review database use an appropriate" \
-                   " database tool, such as SQLite Studio, HeidiSQL or MySQL Workbench."
+            self.set_preview_field(self.important_information)
+            self.convert_button['state'] = DISABLED
+            info = "Database was converted successfully! To open database use an appropriate" \
+                   " database managing tool, such as SQLite Studio, HeidiSQL or MySQL Workbench."
             messagebox.showinfo(title='Converted Successfully!', message=info)
+
+    def set_preview_field(self, content):
+        self.csv_preview.config(state=NORMAL)
+        self.csv_preview.delete(1.0, END)
+        self.csv_preview.insert(INSERT, content)
+        self.csv_preview.config(state=DISABLED)
 
 
 window = Tk()
